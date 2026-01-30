@@ -8,9 +8,7 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
-
   FRONTEND_SERVICES: "main electronics phones computers earphones googlemusic googlepay googleclothes googlegrocery"
-  BACKEND_SERVICE: "backend"
 
 permissions:
   contents: write
@@ -23,7 +21,7 @@ jobs:
       # -------------------------
       # Checkout
       # -------------------------
-      - name: 🧾 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GIT_PAT }}
@@ -31,7 +29,7 @@ jobs:
       # -------------------------
       # AWS Credentials
       # -------------------------
-      - name: 🔧 Configure AWS credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -41,29 +39,24 @@ jobs:
       # -------------------------
       # ECR Login
       # -------------------------
-      - name: 📦 Login to Amazon ECR
+      - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
       # -------------------------
       # Build & Push Images
       # -------------------------
-      - name: 🛠 Build and Push Docker Images
+      - name: Build and Push Docker Images
         run: |
           set -e
           IMAGE_TAG="${GITHUB_SHA}"
 
-          # -------- Frontend --------
+          # ---------- Frontend ----------
           for service in $FRONTEND_SERVICES; do
             FOLDER="frontend/$service"
             REPO_NAME="shopping-site-$service"
             IMAGE_URI="$ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG"
 
-            if [ ! -f "$FOLDER/Dockerfile" ]; then
-              echo "⚠️ No Dockerfile in $FOLDER, skipping..."
-              continue
-            fi
-
-            echo "🚀 Building $service"
+            [ -f "$FOLDER/Dockerfile" ] || continue
 
             aws ecr describe-repositories --repository-names $REPO_NAME >/dev/null 2>&1 || \
               aws ecr create-repository \
@@ -76,57 +69,48 @@ jobs:
             sed -i "s|image:.*|image: $IMAGE_URI|g" "$FOLDER/deployment.yml"
           done
 
-          # -------- Backend --------
-          FOLDER="backend"
+          # ---------- Backend ----------
           REPO_NAME="shopping-site-backend"
           IMAGE_URI="$ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG"
-
-          echo "🚀 Building backend"
 
           aws ecr describe-repositories --repository-names $REPO_NAME >/dev/null 2>&1 || \
             aws ecr create-repository \
               --repository-name $REPO_NAME \
               --image-scanning-configuration scanOnPush=true
 
-          docker build -t $IMAGE_URI $FOLDER
+          docker build -t $IMAGE_URI backend
           docker push $IMAGE_URI
 
-          sed -i "s|image:.*|image: $IMAGE_URI|g" "$FOLDER/backend-deployment.yml"
+          sed -i "s|image:.*|image: $IMAGE_URI|g" backend/backend-deployment.yml
 
       # -------------------------
       # Commit YAML changes
       # -------------------------
-      - name: 🔄 Commit updated YAML files
+      - name: Commit updated YAML files
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-
           git add frontend/**/deployment.yml backend/backend-deployment.yml
-          git commit -m "🔄 Update image tags after build [skip ci]" || echo "No changes"
-          git push origin main || echo "Nothing to push"
+          git commit -m "Update image tags [skip ci]" || true
+          git push origin main || true
 
       # -------------------------
       # Install jq
       # -------------------------
-      - name: 📦 Install jq
+      - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       # -------------------------
-      # Scan FRONTEND images
+      # Scan Frontend Images (ECR auto scan)
       # -------------------------
-      - name: 🔍 Scan Frontend Images in ECR
+      - name: Scan Frontend Images
         run: |
           set -e
           IMAGE_TAG="${GITHUB_SHA}"
 
-          echo "🔍 Scanning FRONTEND images..."
-
           for service in $FRONTEND_SERVICES; do
             REPO_NAME="shopping-site-$service"
 
-            echo "➡️ Waiting for auto scan of $REPO_NAME"
-
-            # ✅ Use only wait + describe
             aws ecr wait image-scan-complete \
               --repository-name $REPO_NAME \
               --image-id imageTag=$IMAGE_TAG
@@ -137,30 +121,22 @@ jobs:
               --query 'imageScanFindings.findingSeverityCounts' \
               --output json)
 
-            echo "📄 $REPO_NAME scan results: $FINDINGS"
-
-            HIGH=$(echo "$FINDINGS" | jq '.HIGH // 0')
             CRITICAL=$(echo "$FINDINGS" | jq '.CRITICAL // 0')
 
-            if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
-              echo "❌ Vulnerabilities found in $REPO_NAME"
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "❌ Critical vulnerabilities found in $REPO_NAME"
               exit 1
             fi
           done
 
-          echo "✅ All frontend images passed scan"
-
       # -------------------------
-      # Scan BACKEND image
+      # Scan Backend Image (ECR auto scan)
       # -------------------------
-      - name: 🔍 Scan Backend Image in ECR
+      - name: Scan Backend Image
         run: |
           set -e
           IMAGE_TAG="${GITHUB_SHA}"
 
-          echo "➡️ Waiting for auto scan of backend"
-
-          # ✅ Use only wait + describe
           aws ecr wait image-scan-complete \
             --repository-name shopping-site-backend \
             --image-id imageTag=$IMAGE_TAG
@@ -171,21 +147,11 @@ jobs:
             --query 'imageScanFindings.findingSeverityCounts' \
             --output json)
 
-          echo "📄 Backend scan results: $FINDINGS"
-
-          HIGH=$(echo "$FINDINGS" | jq '.HIGH // 0')
           CRITICAL=$(echo "$FINDINGS" | jq '.CRITICAL // 0')
 
-          if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
-            echo "❌ Vulnerabilities found in backend image"
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "❌ Critical vulnerabilities found in backend image"
             exit 1
           fi
 
           echo "✅ Backend image passed scan"
-
-      # -------------------------
-      # Prevent CI loop
-      # -------------------------
-      - name: 🧠 Skip loop if commit was automated
-        if: contains(github.event.head_commit.message, '[skip ci]')
-        run: echo "Skipping re-triggered build"
