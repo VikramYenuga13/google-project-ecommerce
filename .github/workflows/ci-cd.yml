@@ -124,12 +124,9 @@ jobs:
           for service in $FRONTEND_SERVICES; do
             REPO_NAME="shopping-site-$service"
 
-            echo "➡️ Starting scan for $REPO_NAME"
+            echo "➡️ Waiting for auto scan of $REPO_NAME"
 
-            aws ecr start-image-scan \
-              --repository-name $REPO_NAME \
-              --image-id imageTag=$IMAGE_TAG || true
-
+            # ✅ Use only wait + describe
             aws ecr wait image-scan-complete \
               --repository-name $REPO_NAME \
               --image-id imageTag=$IMAGE_TAG
@@ -161,10 +158,9 @@ jobs:
           set -e
           IMAGE_TAG="${GITHUB_SHA}"
 
-          aws ecr start-image-scan \
-            --repository-name shopping-site-backend \
-            --image-id imageTag=$IMAGE_TAG || true
+          echo "➡️ Waiting for auto scan of backend"
 
+          # ✅ Use only wait + describe
           aws ecr wait image-scan-complete \
             --repository-name shopping-site-backend \
             --image-id imageTag=$IMAGE_TAG
