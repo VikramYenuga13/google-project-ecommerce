@@ -6,9 +6,9 @@ on:
       - main
 
 env:
-  AWS_REGION: ap-south-1
+  AWS_REGION: us-east-1
   # Using Account ID from a secret is good practice
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   FRONTEND_SERVICES: "main electronics phones computers earphones googlemusic googlepay googleclothes googlegrocery"
   BACKEND_SERVICE: "backend"
 
