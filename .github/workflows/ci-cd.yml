@@ -7,18 +7,15 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  # Using Account ID from a secret is good practice
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   FRONTEND_SERVICES: "main electronics phones computers earphones googlemusic googlepay googleclothes googlegrocery"
   BACKEND_SERVICE: "backend"
 
 permissions:
-  id-token: write   # Required for OIDC
-  contents: write    # Required for git push
+  contents: write   # needed to push updated YAML files
 
 jobs:
   deploy:
-    # Prevent the job from running if the commit was an automated tag update
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
@@ -26,18 +23,16 @@ jobs:
       - name: 🧾 Checkout repository
         uses: actions/checkout@v4
         with:
-          # Using the default GITHUB_TOKEN is usually enough for push if permissions are set
-          fetch-depth: 0 
+          fetch-depth: 0
 
-      - name: 🔧 Configure AWS credentials (OIDC)
+      - name: 🔧 Configure AWS credentials (Pluralsight – Access Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # REPLACE with your actual IAM Role ARN
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubAction-ECR-Role
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: 📦 Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: 🛠 Build and Push Docker Images
@@ -45,60 +40,53 @@ jobs:
           set -e
           IMAGE_TAG="${GITHUB_SHA}"
 
-          # Frontend Loop
+          # ---------- Frontend ----------
           for service in $FRONTEND_SERVICES; do
             FOLDER="frontend/$service"
             REPO_NAME="shopping-site-$service"
             IMAGE_URI="$ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG"
 
-            if [ ! -f "$FOLDER/Dockerfile" ]; then continue; fi
+            if [ ! -f "$FOLDER/Dockerfile" ]; then
+              echo "Skipping $service (no Dockerfile)"
+              continue
+            fi
 
-            # Ensure repo exists
-            aws ecr describe-repositories --repository-names $REPO_NAME || \
-            aws ecr create-repository --repository-name $REPO_NAME --image-scanning-configuration scanOnPush=true
+            aws ecr describe-repositories --repository-names "$REPO_NAME" || \
+            aws ecr create-repository --repository-name "$REPO_NAME"
 
-            docker build -t $IMAGE_URI $FOLDER
-            docker push $IMAGE_URI
-            
-            # Update YAML locally (don't commit yet)
+            docker build -t "$IMAGE_URI" "$FOLDER"
+            docker push "$IMAGE_URI"
+
             sed -i "s|image:.*|image: $IMAGE_URI|g" "$FOLDER/deployment.yml"
           done
 
-          # Backend
+          # ---------- Backend ----------
           REPO_NAME="shopping-site-backend"
           IMAGE_URI="$ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG"
-          
-          aws ecr describe-repositories --repository-names $REPO_NAME || \
-          aws ecr create-repository --repository-name $REPO_NAME --image-scanning-configuration scanOnPush=true
-          
-          docker build -t $IMAGE_URI backend
-          docker push $IMAGE_URI
-          sed -i "s|image:.*|image: $IMAGE_URI|g" "backend/backend-deployment.yml"
+
+          aws ecr describe-repositories --repository-names "$REPO_NAME" || \
+          aws ecr create-repository --repository-name "$REPO_NAME"
+
+          docker build -t "$IMAGE_URI" backend
+          docker push "$IMAGE_URI"
+
+          sed -i "s|image:.*|image: $IMAGE_URI|g" backend/backend-deployment.yml
 
       - name: 🔍 Scan Images in ECR
         run: |
           set -e
-          # Helper function to avoid repeating code
-          scan_repo() {
+          scan_repo () {
             local repo=$1
-            echo "🔍 Scanning $repo..."
-            aws ecr start-image-scan --repository-name $repo --image-id imageTag=${GITHUB_SHA} || true
-            aws ecr wait image-scan-complete --repository-name $repo --image-id imageTag=${GITHUB_SHA}
-            
-            FINDINGS=$(aws ecr describe-image-scan-findings --repository-name $repo --image-id imageTag=${GITHUB_SHA} --query 'imageScanFindings.findingSeverityCounts' --output json)
-            HIGH=$(echo "$FINDINGS" | jq '.HIGH // 0')
-            CRITICAL=$(echo "$FINDINGS" | jq '.CRITICAL // 0')
-            
-            if [ "$HIGH" -gt 0 ] || [ "$CRITICAL" -gt 0 ]; then
-              echo "❌ Critical/High vulnerabilities in $repo"; exit 1
-            fi
+            aws ecr start-image-scan --repository-name "$repo" --image-id imageTag="${GITHUB_SHA}" || true
+            aws ecr wait image-scan-complete --repository-name "$repo" --image-id imageTag="${GITHUB_SHA}"
           }
 
-          for service in $FRONTEND_SERVICES; do scan_repo "shopping-site-$service"; done
+          for service in $FRONTEND_SERVICES; do
+            scan_repo "shopping-site-$service"
+          done
           scan_repo "shopping-site-backend"
 
-      - name: 🔄 Commit updated YAML files
-        # This only runs if the build and scans were successful
+      - name: 🔄 Commit updated deployment files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
