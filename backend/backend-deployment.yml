@@ -18,12 +18,16 @@ spec:
         - name: backend-container
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
           image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:a849433
 =======
           image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:2f62a9b
 >>>>>>> Stashed changes
 =======
           image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:e8ea493
+>>>>>>> Stashed changes
+=======
+          image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:33a551b
 >>>>>>> Stashed changes
           ports:
             - containerPort: 5000
