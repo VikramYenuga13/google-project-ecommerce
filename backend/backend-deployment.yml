@@ -19,6 +19,7 @@ spec:
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
           image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:a849433
 =======
           image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:2f62a9b
@@ -28,6 +29,9 @@ spec:
 >>>>>>> Stashed changes
 =======
           image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:33a551b
+>>>>>>> Stashed changes
+=======
+          image: 891376978717.dkr.ecr.us-east-1.amazonaws.com/shopping-site-backend:bd1246a
 >>>>>>> Stashed changes
           ports:
             - containerPort: 5000
