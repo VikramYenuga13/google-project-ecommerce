@@ -12,10 +12,11 @@ env:
   BACKEND_SERVICE: "backend"
 
 permissions:
-  contents: write   # required to push updated manifests
+  contents: write
 
 jobs:
   deploy:
+    # Prevent CI loop from bot commits
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
@@ -41,7 +42,7 @@ jobs:
       - name: 🛠 Build and Push Docker Images
         run: |
           set -e
-          IMAGE_TAG="${GITHUB_SHA}"
+          IMAGE_TAG="${GITHUB_SHA::7}"
 
           # ---------- Frontend ----------
           for service in $FRONTEND_SERVICES; do
@@ -57,7 +58,6 @@ jobs:
             docker build -t "$IMAGE_URI" "$FOLDER"
             docker push "$IMAGE_URI"
 
-            # Update ONLY this service image
             sed -i "/name: ${service}-container/{n;s|image:.*|image: $IMAGE_URI|}" \
               "$FOLDER/deployment.yml"
           done
@@ -72,7 +72,6 @@ jobs:
           docker build -t "$IMAGE_URI" backend
           docker push "$IMAGE_URI"
 
-          # Update ONLY backend container image
           sed -i "/name: backend-container/{n;s|image:.*|image: $IMAGE_URI|}" \
             backend/backend-deployment.yml
 
@@ -82,8 +81,8 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # CRITICAL FIX: prevent non-fast-forward errors
-          git pull origin main --rebase
+          # Safely sync with main even if files changed
+          git pull origin main --rebase --autostash
 
           git add .
           git commit -m "chore: update image tags to ${GITHUB_SHA::7} [skip ci]" || echo "No changes"
