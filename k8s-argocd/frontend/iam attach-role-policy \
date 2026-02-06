@@ -1,0 +1,31 @@
+{
+    "InstanceProfile": {
+        "Path": "/",
+        "InstanceProfileName": "eks-bcce18c4-7763-4311-3c3d-f173a7ea4ab4",
+        "InstanceProfileId": "AIPA47CRVJMOZYJYUISBH",
+        "Arn": "arn:aws:iam::891376978717:instance-profile/eks-bcce18c4-7763-4311-3c3d-f173a7ea4ab4",
+        "CreateDate": "2026-02-06T05:59:48+00:00",
+        "Roles": [
+            {
+                "Path": "/",
+                "RoleName": "node",
+                "RoleId": "AROA47CRVJMOQKY3WSVG7",
+                "Arn": "arn:aws:iam::891376978717:role/node",
+                "CreateDate": "2026-02-06T05:52:45+00:00",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                }
+            }
+        ],
+        "Tags": []
+    }
+}
